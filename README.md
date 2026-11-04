@@ -32,11 +32,29 @@ Bump them before or after the first build — Android Studio will flag stale
 ones. The one version that *was* checked is `vosk-android 0.3.75`, the latest
 published to Maven Central at time of writing.
 
-**3. Nothing here has been compiled.** The scaffold was written without an
-Android SDK available, so the CI run is the first real compile. Expect to fix
-a few import or API-signature issues on the first build. The matching logic is
-the exception — its scoring was verified numerically against the test cases in
-`PhraseMatcherTest`.
+**3. The Kotlin compiles and the unit tests pass** as of the first green CI
+run. Matcher scoring was additionally verified numerically against the cases
+in `PhraseMatcherTest`. What has *not* been verified is runtime behaviour on a
+real device — nothing below the compile line has been exercised against an
+actual microphone, TTS engine or Vosk model.
+
+### A note on document import
+
+`poi-ooxml` was removed. It drags in log4j-api and xmlbeans, which reference
+OSGi and bnd annotation classes that do not exist on Android; R8 then refuses
+to shrink the release build against unresolved references. It also costs
+several MB of APK.
+
+When the importer is written, `.docx` is a zip containing `word/document.xml`
+and can be parsed with the built-in `XmlPullParser` plus `java.util.zip` —
+much smaller and no R8 trouble. `pdfbox-android` can come back for PDF text
+extraction; it is Android-specific and behaves. Both are still declared in
+`gradle/libs.versions.toml`, just not applied, and the `-dontwarn` rules they
+need are already in `proguard-rules.pro`.
+
+One trap worth remembering: R8's "Missing class X" is silenced by a
+`-dontwarn` naming **X**, not the class referencing it. `-dontwarn
+org.apache.poi.**` does nothing about a missing `org.osgi.framework.Bundle`.
 
 ---
 
@@ -52,7 +70,7 @@ the exception — its scoring was verified numerically against the test cases in
 | Script create / edit / search / duplicate / delete (Room) | Implemented |
 | Volume-key and page-key scroll | Implemented |
 | TTS rate and pitch | Implemented |
-| Document import (PDF/DOCX) | Dependencies wired, parser not written |
+| Document import (PDF/DOCX) | Deferred — deps removed, see note below |
 | Live mode (you lead, TTS silent) | Not built — see below |
 | EQ, Bluetooth device switching, mirror mode, folders | Not built |
 
