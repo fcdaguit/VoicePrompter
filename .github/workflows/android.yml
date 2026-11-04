@@ -20,6 +20,15 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
 
+    # Job-level env is the only place secrets can be surfaced for use in a
+    # step `if:`. The `secrets` context is not available in a condition, and a
+    # step's own `env:` block is not in scope for that step's own condition.
+    env:
+      KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,14 +80,10 @@ jobs:
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Sign release APK
-        # Secrets are readable in step conditions; a step's own env block is
-        # not, which is why this reads from secrets directly.
-        if: ${{ secrets.KEYSTORE_B64 != '' }}
-        env:
-          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        # Reads the job-level env above, which is populated from secrets.
+        # Skipped silently when the signing secrets are not configured — the
+        # release APK is then produced unsigned.
+        if: env.KEYSTORE_B64 != ''
         run: |
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
